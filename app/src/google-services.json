@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "426452403983",
+    "firebase_url": "https://assignment2db1-default-rtdb.firebaseio.com",
+    "project_id": "assignment2db1",
+    "storage_bucket": "assignment2db1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:426452403983:android:675b7e8a6d08765592a07a",
+        "android_client_info": {
+          "package_name": "com.salmansaleem.i220904"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAbhXw2Y1ope9Ii3qazgxnDm9C4FEcZKUs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
