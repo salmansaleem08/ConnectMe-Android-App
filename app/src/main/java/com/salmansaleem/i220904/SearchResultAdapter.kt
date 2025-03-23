@@ -11,36 +11,40 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
+import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.salmansaleem.i220904.R
 import com.salmansaleem.i220904.User
 
-class StoryFollowerAdapter(private val userList: List<User>) :
-    RecyclerView.Adapter<StoryFollowerAdapter.ViewHolder>() {
+class SearchResultAdapter(private val userList: List<User>) :
+    RecyclerView.Adapter<SearchResultAdapter.ViewHolder>() {
 
     class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        val storyImage: ImageView = itemView.findViewById(R.id.story_image)
+        val profileImage: ImageView = itemView.findViewById(R.id.profile_image)
+        val username: TextView = itemView.findViewById(R.id.username)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val view = LayoutInflater.from(parent.context)
-            .inflate(R.layout.item_story_follower, parent, false)
+            .inflate(R.layout.item_search_result, parent, false)
         return ViewHolder(view)
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val user = userList[position]
+        holder.username.text = user.username
+
         if (user.profileImageBase64.isNotEmpty()) {
             try {
                 val decodedBytes = Base64.decode(user.profileImageBase64, Base64.DEFAULT)
                 val bitmap = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
                 val circularBitmap = getCircularBitmap(bitmap)
-                holder.storyImage.setImageBitmap(circularBitmap)
+                holder.profileImage.setImageBitmap(circularBitmap)
             } catch (e: Exception) {
-                holder.storyImage.setImageResource(R.drawable.default_profile)
+                holder.profileImage.setImageResource(R.drawable.default_profile)
             }
         } else {
-            holder.storyImage.setImageResource(R.drawable.default_profile) // Set default if no image
+            holder.profileImage.setImageResource(R.drawable.default_profile) // Set default if no image
         }
     }
 

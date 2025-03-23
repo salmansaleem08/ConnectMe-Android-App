@@ -39,6 +39,7 @@ class EditProfile : AppCompatActivity() {
     private lateinit var phoneEditText: EditText
     private lateinit var bioEditText: EditText
     private lateinit var doneButton: TextView
+    private lateinit var name :TextView
 
     // Firebase references
     private lateinit var mAuth: FirebaseAuth
@@ -73,6 +74,8 @@ class EditProfile : AppCompatActivity() {
         phoneEditText = findViewById(R.id.PersonContactNumber)
         bioEditText = findViewById(R.id.personBio)
         doneButton = findViewById(R.id.done)
+        name = findViewById(R.id.olivia)
+
 
         // Set scale type for zooming
         imageView.scaleType = ImageView.ScaleType.CENTER_CROP
@@ -104,6 +107,7 @@ class EditProfile : AppCompatActivity() {
                 if (user != null) {
                     nameEditText.hint = user.name
                     usernameEditText.hint = user.username
+                    name.text = user.username
                     phoneEditText.hint = user.phone
                     bioEditText.hint = user.bio
                     if (user.profileImageBase64.isNotEmpty()) {

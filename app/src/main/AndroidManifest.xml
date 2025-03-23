@@ -4,8 +4,8 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
     <application
@@ -18,6 +18,18 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.I220904"
         tools:targetApi="31">
+        <activity
+            android:name=".MyProfile"
+            android:exported="false" />
+        <activity
+            android:name=".NewPostShare"
+            android:exported="false" />
+        <activity
+            android:name=".NewPost"
+            android:exported="false" />
+        <activity
+            android:name=".Search"
+            android:exported="false" />
         <activity
             android:name=".EditProfile"
             android:exported="false" />

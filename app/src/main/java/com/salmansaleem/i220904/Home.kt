@@ -1,5 +1,6 @@
 package com.salmansaleem.i220904
 
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
@@ -20,14 +21,14 @@ import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
-
+import com.salmansaleem.i220904.StoryFollowerAdapter
 import android.widget.ImageView
 
 class Home : AppCompatActivity() {
 
     private lateinit var recyclerView: RecyclerView
     private lateinit var adapter: StoryFollowerAdapter
-    private val FollowersList = mutableListOf<User>()
+    private val followersList = mutableListOf<User>()
     private lateinit var profilePicImageView: ImageView
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,52 +43,38 @@ class Home : AppCompatActivity() {
 
         profilePicImageView = findViewById(R.id.profilepic)
 
-
         recyclerView = findViewById(R.id.stories_recycler_view)
-        recyclerView.layoutManager = LinearLayoutManager(this)
-        adapter = StoryFollowerAdapter(FollowersList)
+        recyclerView.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        adapter = StoryFollowerAdapter(followersList)
         recyclerView.adapter = adapter
-
 
         fetchCurrentUserProfile()
         fetchFollowersFromDatabase()
-    }
 
+        var btn1 = findViewById<ImageView>(R.id.search)
+        btn1.setOnClickListener {
+            val intent = Intent(this, Search::class.java)
+            startActivity(intent)
+        }
 
-    private fun fetchFollowersFromDatabase() {
-        val database = FirebaseDatabase.getInstance().reference.child("Users")
-        val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        var btn2 = findViewById<ImageView>(R.id.add)
+        btn2.setOnClickListener {
+            val intent = Intent(this, NewPost::class.java)
+            startActivity(intent)
+        }
 
-        database.child(currentUserId).addValueEventListener(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                FollowersList.clear()
-                val currentUser = snapshot.getValue(User::class.java)
+        var btn3 = findViewById<ImageView>(R.id.myProfile)
+        btn3.setOnClickListener {
+            val intent = Intent(this, MyProfile::class.java)
+            startActivity(intent)
+        }
 
-                if (currentUser?.followers.isNullOrEmpty()) {
-                    adapter.notifyDataSetChanged()
-                    return
-                }
+        var btn4 = findViewById<ImageView>(R.id.contacts)
+        btn4.setOnClickListener {
+            val intent = Intent(this, Contacts::class.java)
+            startActivity(intent)
+        }
 
-                // Fetch all users once
-                database.get().addOnSuccessListener { allUsersSnapshot ->
-                    val allUsers = allUsersSnapshot.children.mapNotNull { it.getValue(User::class.java) }
-                    currentUser?.followers?.forEach { follower ->
-                        allUsers.find { it.username == follower.username }?.let { followerUser ->
-                            if (!FollowersList.contains(followerUser)) {
-                                FollowersList.add(followerUser)
-                            }
-                        }
-                    }
-                    adapter.notifyDataSetChanged()
-                }.addOnFailureListener { error ->
-                    Log.e("Contacts", "Failed to fetch all users: ${error.message}")
-                }
-            }
-
-            override fun onCancelled(error: DatabaseError) {
-                Log.e("Contacts", "Database error: ${error.message}")
-            }
-        })
     }
 
     private fun fetchCurrentUserProfile() {
@@ -97,16 +84,18 @@ class Home : AppCompatActivity() {
         database.child(currentUserId).get().addOnSuccessListener { snapshot ->
             val currentUser = snapshot.getValue(User::class.java)
             currentUser?.let {
-                try {
-                    if (it.profileImageBase64.isNotEmpty()) {
+                if (it.profileImageBase64.isNotEmpty()) {
+                    try {
                         val decodedBytes = Base64.decode(it.profileImageBase64, Base64.DEFAULT)
                         val bitmap = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
                         val circularBitmap = getCircularBitmap(bitmap)
                         profilePicImageView.setImageBitmap(circularBitmap)
+                    } catch (e: Exception) {
+                        Log.e("Home", "Failed to load profile picture: ${e.message}")
+                        profilePicImageView.setImageResource(R.drawable.default_profile)
                     }
-                } catch (e: Exception) {
-                    Log.e("Home", "Failed to load profile picture: ${e.message}")
-                    profilePicImageView.setImageResource(R.drawable.default_profile)
+                } else {
+                    profilePicImageView.setImageResource(R.drawable.default_profile) // Set default if no image
                 }
             }
         }.addOnFailureListener { error ->
@@ -115,8 +104,43 @@ class Home : AppCompatActivity() {
         }
     }
 
+    private fun fetchFollowersFromDatabase() {
+        val database = FirebaseDatabase.getInstance().reference.child("Users")
+        val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: return
+
+        database.child(currentUserId).addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                followersList.clear()
+                val currentUser = snapshot.getValue(User::class.java)
+
+                if (currentUser?.followers.isNullOrEmpty()) {
+                    adapter.notifyDataSetChanged()
+                    return
+                }
+
+                database.get().addOnSuccessListener { allUsersSnapshot ->
+                    val allUsers = allUsersSnapshot.children.mapNotNull { it.getValue(User::class.java) }
+                    currentUser?.followers?.forEach { follower ->
+                        allUsers.find { it.username == follower.username && it.uid != currentUserId }?.let { followerUser ->
+                            if (!followersList.contains(followerUser)) {
+                                followersList.add(followerUser)
+                            }
+                        }
+                    }
+                    adapter.notifyDataSetChanged()
+                }.addOnFailureListener { error ->
+                    Log.e("Home", "Failed to fetch all users: ${error.message}")
+                }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e("Home", "Database error: ${error.message}")
+            }
+        })
+    }
+
     private fun getCircularBitmap(bitmap: Bitmap): Bitmap {
-        val size = Math.max(bitmap.width, bitmap.height)
+        val size = Math.min(bitmap.width, bitmap.height)
         val output = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(output)
         val paint = Paint()
