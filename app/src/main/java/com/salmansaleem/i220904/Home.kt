@@ -22,6 +22,7 @@ import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
 import android.widget.ImageView
+import com.google.firebase.database.ChildEventListener
 
 class Home : AppCompatActivity() {
 
@@ -29,6 +30,12 @@ class Home : AppCompatActivity() {
     private lateinit var adapter: StoryFollowerAdapter
     private val followersList = mutableListOf<User>()
     private lateinit var profilePicImageView: ImageView
+
+
+    private lateinit var postRecyclerView: RecyclerView
+    private lateinit var postAdapter: PostAdapter
+    private val postsMap = mutableMapOf<String, Pair<User, Post>>() // To avoid duplicates and sort later
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,6 +46,19 @@ class Home : AppCompatActivity() {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
+
+
+        postRecyclerView = findViewById(R.id.post_recycler_view)
+        postAdapter = PostAdapter()
+
+        postRecyclerView.apply {
+            layoutManager = LinearLayoutManager(this@Home)
+            adapter = postAdapter
+        }
+
+        fetchPostsFromFollowers()
+
+
 
         profilePicImageView = findViewById(R.id.profilepic)
         recyclerView = findViewById(R.id.stories_recycler_view)
@@ -158,4 +178,64 @@ class Home : AppCompatActivity() {
 
         return output
     }
+
+
+
+    private fun fetchPostsFromFollowers() {
+        val database = FirebaseDatabase.getInstance().reference.child("Users")
+        val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: return
+
+        // Get the current user's following list first
+        database.child(currentUserId).get().addOnSuccessListener { snapshot ->
+            val currentUser = snapshot.getValue(User::class.java)
+            val followingIds = currentUser?.following?.map { it.username }?.toSet() ?: emptySet()
+
+            // Listen for users and their posts incrementally
+            database.addChildEventListener(object : ChildEventListener {
+                override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
+                    val user = snapshot.getValue(User::class.java) ?: return
+                    if (user.username in followingIds || user.uid == currentUserId) {
+                        user.posts.forEach { post ->
+                            postAdapter.addPost(user, post) // Add each post as it loads
+                        }
+                    }
+                }
+
+                override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {
+                    val user = snapshot.getValue(User::class.java) ?: return
+                    if (user.username in followingIds || user.uid == currentUserId) {
+                        user.posts.forEach { post ->
+                            // Only add new posts that aren't already in the list
+                            if (posts.none { it.second.timestamp == post.timestamp }) {
+                                postAdapter.addPost(user, post)
+                            }
+                        }
+                    }
+                }
+
+                override fun onChildRemoved(snapshot: DataSnapshot) {
+                    // Handle post removal if needed
+                }
+
+                override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {
+                    // Not needed since we're not sorting
+                }
+
+                override fun onCancelled(error: DatabaseError) {
+                    Log.e("Home", "Database error: ${error.message}")
+                }
+            })
+        }.addOnFailureListener {
+            Log.e("Home", "Failed to fetch current user: ${it.message}")
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // Clean up listeners if necessary
+    }
+
+    private val posts: List<Pair<User, Post>>
+        get() = postAdapter.posts
+
 }
