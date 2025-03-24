@@ -1,6 +1,8 @@
 package com.salmansaleem.i220904
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -12,11 +14,9 @@ import android.widget.*
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.storage.FirebaseStorage
 import java.io.ByteArrayOutputStream
 
 class NewPost : AppCompatActivity() {
@@ -36,11 +36,24 @@ class NewPost : AppCompatActivity() {
         if (result.resultCode == RESULT_OK && result.data != null) {
             val imageUri = result.data?.data
             imageUri?.let {
-                val bitmap = MediaStore.Images.Media.getBitmap(contentResolver, it)
-                val squareBitmap = cropToSquare(bitmap)
-                photoImageView.setImageBitmap(squareBitmap)
-                selectedBitmap = squareBitmap
+                try {
+                    val bitmap = MediaStore.Images.Media.getBitmap(contentResolver, it)
+                    val squareBitmap = cropToSquare(bitmap)
+                    photoImageView.setImageBitmap(squareBitmap)
+                    selectedBitmap = squareBitmap
+                } catch (e: Exception) {
+                    Log.e("NewPost", "Error picking image: ${e.message}", e)
+                    Toast.makeText(this, "Failed to load image", Toast.LENGTH_SHORT).show()
+                }
             }
+        }
+    }
+
+    private val requestStoragePermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            loadGalleryPhotos()
+        } else {
+            Toast.makeText(this, "Storage permission denied. Gallery photos cannot be loaded.", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -63,9 +76,22 @@ class NewPost : AppCompatActivity() {
         gridLayout3 = findViewById(R.id.grid3)
         gridLayout4 = findViewById(R.id.grid4)
 
-        loadGalleryPhotos() // Load "Recents" by default
         setupListeners()
         setupAlbumSelector()
+        checkStoragePermission() // Check permission instead of direct load
+    }
+
+    private fun checkStoragePermission() {
+        val permission = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.READ_MEDIA_IMAGES
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+        if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED) {
+            loadGalleryPhotos()
+        } else {
+            requestStoragePermission.launch(permission)
+        }
     }
 
     private fun setupAlbumSelector() {
@@ -77,7 +103,7 @@ class NewPost : AppCompatActivity() {
     private fun showAlbumPopup() {
         val albums = getAlbums()
         val popup = PopupMenu(this, albumSelector)
-        popup.menu.add("Recents") // Add "Recents" as an option
+        popup.menu.add("Recents")
         albums.forEach { (name, id) ->
             popup.menu.add(name)
         }
@@ -114,7 +140,7 @@ class NewPost : AppCompatActivity() {
                 val id = it.getString(idColumn)
                 albums[name] = id
             }
-        }
+        } ?: Log.w("NewPost", "No albums found")
         return albums
     }
 
@@ -146,29 +172,37 @@ class NewPost : AppCompatActivity() {
                     MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
                     it.getString(idColumn)
                 )
-                val firstBitmap = MediaStore.Images.Media.getBitmap(contentResolver, firstUri)
-                val squareFirstBitmap = cropToSquare(firstBitmap)
-                photoImageView.setImageBitmap(squareFirstBitmap)
-                selectedBitmap = squareFirstBitmap
+                try {
+                    val firstBitmap = MediaStore.Images.Media.getBitmap(contentResolver, firstUri)
+                    val squareFirstBitmap = cropToSquare(firstBitmap)
+                    photoImageView.setImageBitmap(squareFirstBitmap)
+                    selectedBitmap = squareFirstBitmap
+                } catch (e: Exception) {
+                    Log.e("NewPost", "Error loading first photo: ${e.message}", e)
+                }
             }
 
             while (it.moveToNext() && gridIndex < gridLayouts.size) {
                 val imageId = it.getString(idColumn)
                 val imageUri = Uri.withAppendedPath(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, imageId)
-                val bitmap = BitmapFactory.decodeFile(it.getString(dataColumn))
+                val bitmap = BitmapFactory.decodeFile(it.getString(dataColumn)) ?: continue
                 val squareBitmap = cropToSquare(bitmap)
 
-                val imageView = gridLayouts[gridIndex].getChildAt(imageCount % 4) as ImageView
-                imageView.setImageBitmap(squareBitmap)
-                imageView.setOnClickListener {
-                    photoImageView.setImageBitmap(squareBitmap)
-                    selectedBitmap = squareBitmap
+                try {
+                    val imageView = gridLayouts[gridIndex].getChildAt(imageCount % 4) as ImageView
+                    imageView.setImageBitmap(squareBitmap)
+                    imageView.setOnClickListener {
+                        photoImageView.setImageBitmap(squareBitmap)
+                        selectedBitmap = squareBitmap
+                    }
+                } catch (e: Exception) {
+                    Log.e("NewPost", "Error setting grid image: ${e.message}", e)
                 }
 
                 imageCount++
                 if (imageCount % 4 == 0) gridIndex++
             }
-        }
+        } ?: Log.w("NewPost", "No photos found in gallery")
     }
 
     private fun setupListeners() {
@@ -184,12 +218,12 @@ class NewPost : AppCompatActivity() {
                 val byteArray = baos.toByteArray()
                 intent.putExtra("selectedPhoto", byteArray)
                 startActivity(intent)
-            }
+            } ?: Toast.makeText(this, "No photo selected", Toast.LENGTH_SHORT).show()
         }
 
         findViewById<ImageView>(R.id.camera)?.setOnClickListener {
             openGallery()
-        }
+        } ?: Log.w("NewPost", "Camera button not found")
     }
 
     private fun openGallery() {
@@ -205,5 +239,4 @@ class NewPost : AppCompatActivity() {
         val y = (height - size) / 2
         return Bitmap.createBitmap(bitmap, x, y, size, size)
     }
-
 }

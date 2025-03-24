@@ -17,4 +17,7 @@
     <string name="underlined_text2"><u>Terms of Service</u></string>
 
     <string name="underlined_text3"><u>Privacy Policy</u></string>
+
+    <string name="followers_count"><u>%d Followers</u></string>
+    <string name="following_count"><u>%d Following</u></string>
 </resources>

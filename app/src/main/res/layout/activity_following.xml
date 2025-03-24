@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FFFFFF"
+    tools:context=".FollowingActivity">
+
+    <!-- Top Bar -->
+    <LinearLayout
+        android:id="@+id/toper"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingTop="30dp"
+        android:paddingStart="15dp"
+        android:paddingEnd="15dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <ImageView
+            android:id="@+id/back"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:src="@drawable/backwardarrow" />
+
+        <TextView
+            android:id="@+id/name"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:text="OliviaD"
+            android:textSize="25sp"
+            android:textStyle="bold"
+            android:textColor="#000000"
+            android:layout_marginStart="5dp"
+            android:layout_weight="1" />
+    </LinearLayout>
+
+    <!-- Follow Section -->
+    <LinearLayout
+        android:id="@+id/follow"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        app:layout_constraintWidth_default="percent"
+        app:layout_constraintWidth_percent="0.9"
+        app:layout_constraintTop_toBottomOf="@id/toper"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="15dp">
+
+        <TextView
+            android:id="@+id/countfollowers"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/followers_count"
+            android:textSize="25sp"
+            android:textColor="#000000"
+            />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="20dp"
+            android:layout_weight="1" />
+
+        <TextView
+            android:id="@+id/countfollowing"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/following_count"
+            android:textSize="25sp"
+            android:textStyle="bold"
+            android:textColor="#58432E"
+             />
+    </LinearLayout>
+
+
+
+
+    <LinearLayout
+        android:id="@+id/search"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_margin="15dp"
+        android:gravity="center_vertical"
+        app:layout_constraintWidth_default="percent"
+        app:layout_constraintWidth_percent="0.9"
+        app:layout_constraintTop_toBottomOf="@id/follow"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        >
+
+        <EditText
+            android:id="@+id/search_edit_text"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="Search"
+            android:padding="15dp"
+            android:textSize="18sp"
+            android:textColorHint="#808080"
+            android:textColor="#000000"/>
+
+        <ImageView
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:src="@drawable/search"
+            android:alpha="0.5" />
+    </LinearLayout>
+
+
+
+
+
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerViewFollowing"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginTop="10dp"
+        android:paddingStart="15dp"
+        android:paddingEnd="15dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/search" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

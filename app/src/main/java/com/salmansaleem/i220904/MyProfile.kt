@@ -68,6 +68,17 @@ class MyProfile : AppCompatActivity() {
             startActivity(intent)
         }
 
+        var btn2 = findViewById<TextView>(R.id.followers)
+        btn2.setOnClickListener {
+            val intent = Intent(this, FollowersActivity::class.java)
+            startActivity(intent)
+        }
+
+        var btn3 = findViewById<TextView>(R.id.following)
+        btn3.setOnClickListener {
+            val intent = Intent(this, FollowingActivity::class.java)
+            startActivity(intent)
+        }
     }
 
     private fun loadUserData() {

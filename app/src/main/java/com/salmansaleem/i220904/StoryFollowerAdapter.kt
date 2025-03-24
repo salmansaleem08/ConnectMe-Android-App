@@ -13,10 +13,11 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import androidx.recyclerview.widget.RecyclerView
 import com.salmansaleem.i220904.R
-import com.salmansaleem.i220904.User
 
-class StoryFollowerAdapter(private val userList: List<User>) :
-    RecyclerView.Adapter<StoryFollowerAdapter.ViewHolder>() {
+class StoryFollowerAdapter(
+    private val userList: List<User>,
+    private val onUserClick: (User) -> Unit // Added click listener
+) : RecyclerView.Adapter<StoryFollowerAdapter.ViewHolder>() {
 
     class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val storyImage: ImageView = itemView.findViewById(R.id.story_image)
@@ -40,7 +41,12 @@ class StoryFollowerAdapter(private val userList: List<User>) :
                 holder.storyImage.setImageResource(R.drawable.default_profile)
             }
         } else {
-            holder.storyImage.setImageResource(R.drawable.default_profile) // Set default if no image
+            holder.storyImage.setImageResource(R.drawable.default_profile)
+        }
+
+        // Set click listener to launch StoryViewActivity
+        holder.itemView.setOnClickListener {
+            onUserClick(user)
         }
     }
 

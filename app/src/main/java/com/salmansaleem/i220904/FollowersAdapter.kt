@@ -1,6 +1,5 @@
 package com.salmansaleem.i220904.adapters
 
-import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
@@ -8,18 +7,17 @@ import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.util.Base64
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.Glide
-import com.salmansaleem.i220904.Follower
 import com.salmansaleem.i220904.R
 import com.salmansaleem.i220904.User
 
-class FollowersAdapter (private val userList : List<User>): RecyclerView.Adapter<FollowersAdapter.ViewHolder>() {
+class FollowersAdapter(private val userList: List<User>) : RecyclerView.Adapter<FollowersAdapter.ViewHolder>() {
 
     class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val profileImage: ImageView = itemView.findViewById(R.id.profile_image)
@@ -35,27 +33,31 @@ class FollowersAdapter (private val userList : List<User>): RecyclerView.Adapter
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val user = userList[position]
         holder.username.text = user.username
+        Log.d("FollowersAdapter", "Binding position $position: ${user.username}, Base64 length: ${user.profileImageBase64.length}")
 
-        try {
-            if (user.profileImageBase64.isNotEmpty()) {
+        if (user.profileImageBase64.isNotEmpty()) {
+            try {
                 val decodedBytes = Base64.decode(user.profileImageBase64, Base64.DEFAULT)
+                Log.d("FollowersAdapter", "Decoded bytes length: ${decodedBytes.size}")
                 val bitmap = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
+                Log.d("FollowersAdapter", "Bitmap created: ${bitmap.width}x${bitmap.height}")
                 val circularBitmap = getCircularBitmap(bitmap)
                 holder.profileImage.setImageBitmap(circularBitmap)
+                Log.d("FollowersAdapter", "Image set for ${user.username}")
+            } catch (e: Exception) {
+                Log.e("FollowersAdapter", "Error decoding profile image: ${e.message}")
+                holder.profileImage.setImageResource(R.drawable.default_profile)
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
+        } else {
+            Log.d("FollowersAdapter", "No Base64 for ${user.username}, using default")
             holder.profileImage.setImageResource(R.drawable.default_profile)
         }
-
     }
-
 
     override fun getItemCount(): Int = userList.size
 
-
     private fun getCircularBitmap(bitmap: Bitmap): Bitmap {
-        val size = Math.min(bitmap.width, bitmap.height)
+        val size = minOf(bitmap.width, bitmap.height)
         val output = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(output)
         val paint = Paint()
@@ -72,5 +74,4 @@ class FollowersAdapter (private val userList : List<User>): RecyclerView.Adapter
 
         return output
     }
-
 }

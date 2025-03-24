@@ -21,7 +21,6 @@ import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
-import com.salmansaleem.i220904.StoryFollowerAdapter
 import android.widget.ImageView
 
 class Home : AppCompatActivity() {
@@ -42,39 +41,41 @@ class Home : AppCompatActivity() {
         }
 
         profilePicImageView = findViewById(R.id.profilepic)
-
         recyclerView = findViewById(R.id.stories_recycler_view)
         recyclerView.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
-        adapter = StoryFollowerAdapter(followersList)
+        adapter = StoryFollowerAdapter(followersList) { user ->
+            val intent = Intent(this, StoryViewActivity::class.java)
+            intent.putExtra("USER_ID", user.uid)
+            startActivity(intent)
+        }
         recyclerView.adapter = adapter
 
         fetchCurrentUserProfile()
         fetchFollowersFromDatabase()
 
-        var btn1 = findViewById<ImageView>(R.id.search)
-        btn1.setOnClickListener {
-            val intent = Intent(this, Search::class.java)
+        // Current user's stories on profile click
+        profilePicImageView.setOnClickListener {
+            val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: return@setOnClickListener
+            val intent = Intent(this, StoryViewActivity::class.java)
+            intent.putExtra("USER_ID", currentUserId)
             startActivity(intent)
         }
 
-        var btn2 = findViewById<ImageView>(R.id.add)
-        btn2.setOnClickListener {
-            val intent = Intent(this, NewPost::class.java)
-            startActivity(intent)
+        findViewById<ImageView>(R.id.search).setOnClickListener {
+            startActivity(Intent(this, Search::class.java))
         }
 
-        var btn3 = findViewById<ImageView>(R.id.myProfile)
-        btn3.setOnClickListener {
-            val intent = Intent(this, MyProfile::class.java)
-            startActivity(intent)
+        findViewById<ImageView>(R.id.add).setOnClickListener {
+            startActivity(Intent(this, StoryActivity::class.java))
         }
 
-        var btn4 = findViewById<ImageView>(R.id.contacts)
-        btn4.setOnClickListener {
-            val intent = Intent(this, Contacts::class.java)
-            startActivity(intent)
+        findViewById<ImageView>(R.id.myProfile).setOnClickListener {
+            startActivity(Intent(this, MyProfile::class.java))
         }
 
+        findViewById<ImageView>(R.id.contacts).setOnClickListener {
+            startActivity(Intent(this, Contacts::class.java))
+        }
     }
 
     private fun fetchCurrentUserProfile() {
@@ -95,7 +96,7 @@ class Home : AppCompatActivity() {
                         profilePicImageView.setImageResource(R.drawable.default_profile)
                     }
                 } else {
-                    profilePicImageView.setImageResource(R.drawable.default_profile) // Set default if no image
+                    profilePicImageView.setImageResource(R.drawable.default_profile)
                 }
             }
         }.addOnFailureListener { error ->
