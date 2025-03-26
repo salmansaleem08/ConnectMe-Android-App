@@ -4,3 +4,8 @@ data class Story(
     val profileImageBase64: String = "",
     val timestamp: Long = System.currentTimeMillis() // Time of upload
 )
+
+
+
+
+

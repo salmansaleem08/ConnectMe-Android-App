@@ -1,5 +1,6 @@
 package com.salmansaleem.i220904
 
+
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -95,6 +96,10 @@ class Home : AppCompatActivity() {
 
         findViewById<ImageView>(R.id.contacts).setOnClickListener {
             startActivity(Intent(this, Contacts::class.java))
+        }
+
+        findViewById<ImageView>(R.id.send).setOnClickListener {
+            startActivity(Intent(this, DM::class.java))
         }
     }
 

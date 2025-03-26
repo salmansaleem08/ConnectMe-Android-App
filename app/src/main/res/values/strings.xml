@@ -20,4 +20,5 @@
 
     <string name="followers_count"><u>%d Followers</u></string>
     <string name="following_count"><u>%d Following</u></string>
+    <string name="Dm_underline"><b><u>          DM          </u></b></string>
 </resources>
