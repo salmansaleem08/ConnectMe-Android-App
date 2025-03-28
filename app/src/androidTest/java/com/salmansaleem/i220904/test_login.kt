@@ -1,5 +1,6 @@
 package com.salmansaleem.i220904
 
+import android.view.View
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.action.ViewActions.*
 import androidx.test.espresso.assertion.ViewAssertions.matches
@@ -12,7 +13,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import androidx.test.espresso.IdlingRegistry
 import androidx.test.espresso.IdlingResource
+import androidx.recyclerview.widget.RecyclerView
+import androidx.test.espresso.UiController
+import androidx.test.espresso.ViewAction
 import java.util.concurrent.atomic.AtomicBoolean
+import org.hamcrest.Matcher
+import org.hamcrest.Matchers
+import org.junit.After
+import org.junit.Before
 
 @LargeTest
 @RunWith(AndroidJUnit4::class)
@@ -22,25 +30,67 @@ class SocialAppTests {
     @JvmField
     var mActivityScenarioRule = ActivityScenarioRule(MainActivity::class.java)
 
-    // Custom IdlingResource to wait for splash screen
-    private val splashScreenIdlingResource = object : IdlingResource {
-        private val isIdle = AtomicBoolean(false)
-        private var callback: IdlingResource.ResourceCallback? = null
+    // Idling Resources
+    private val splashScreenIdlingResource = createIdlingResource("SplashScreenIdlingResource", 3000)
+    private val loginIdlingResource = createIdlingResource("LoginIdlingResource", 10000)
+    private val navigationIdlingResource = createIdlingResource("NavigationIdlingResource", 5000)
 
-        override fun getName(): String = "SplashScreenIdlingResource"
+    @Before
+    fun setup() {
+        // Register IdlingResources
+        IdlingRegistry.getInstance().register(
+            splashScreenIdlingResource,
+            loginIdlingResource,
+            navigationIdlingResource
+        )
+    }
 
-        override fun isIdleNow(): Boolean = isIdle.get()
+    @After
+    fun tearDown() {
+        // Unregister IdlingResources
+        IdlingRegistry.getInstance().unregister(
+            splashScreenIdlingResource,
+            loginIdlingResource,
+            navigationIdlingResource
+        )
+    }
 
-        override fun registerIdleTransitionCallback(callback: IdlingResource.ResourceCallback?) {
-            this.callback = callback
-            // Wait for splash screen duration + buffer
-            Thread {
-                Thread.sleep(3000) // 2500ms from Handler + 500ms buffer
-                isIdle.set(true)
-                callback?.onTransitionToIdle()
-            }.start()
+    // Generic IdlingResource creator
+    private fun createIdlingResource(name: String, timeoutMs: Long): IdlingResource {
+        return object : IdlingResource {
+            private val isIdle = AtomicBoolean(false)
+            private var callback: IdlingResource.ResourceCallback? = null
+
+            override fun getName(): String = name
+            override fun isIdleNow(): Boolean = isIdle.get()
+            override fun registerIdleTransitionCallback(callback: IdlingResource.ResourceCallback?) {
+                this.callback = callback
+                Thread {
+                    Thread.sleep(timeoutMs)
+                    isIdle.set(true)
+                    callback?.onTransitionToIdle()
+                }.start()
+            }
         }
     }
+
+    // Custom ViewAction to click on a specific position in a RecyclerView
+    private fun clickItemAtPosition(position: Int): ViewAction {
+        return object : ViewAction {
+            override fun getConstraints(): Matcher<View> = Matchers.instanceOf(RecyclerView::class.java)
+            override fun getDescription(): String = "Click on item at position $position"
+            override fun perform(uiController: UiController, view: View) {
+                val recyclerView = view as RecyclerView
+                val viewHolder = recyclerView.findViewHolderForAdapterPosition(position)
+                viewHolder?.itemView?.performClick()
+                    ?: throw IllegalStateException("Item at position $position not found")
+            }
+        }
+    }
+    private fun checkmesage(){
+
+    }
+
 
     @Test
     fun testSuccessfulLogin() {
@@ -66,4 +116,26 @@ class SocialAppTests {
         // Cleanup
         IdlingRegistry.getInstance().unregister(splashScreenIdlingResource)
     }
+
+
+
+
+    @Test
+    fun testMessageSending() {
+        onView(withId(R.id.login2))
+            .perform(scrollTo(), click())
+
+
+        onView(withId(R.id.username))
+            .perform(scrollTo(), typeText("salmansaleem08"), closeSoftKeyboard())
+        onView(withId(R.id.password))
+            .perform(scrollTo(), typeText("123456"), closeSoftKeyboard())
+
+        onView(withId(R.id.login)).perform(scrollTo(), click())
+
+
+    }
+
+
+
 }
