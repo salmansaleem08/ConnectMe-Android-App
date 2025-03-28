@@ -135,6 +135,8 @@ class EditProfile : AppCompatActivity() {
         })
     }
 
+
+
     private fun saveProfileChanges() {
         val currentUser = mAuth.currentUser ?: return
         val userRef = mDatabase.getReference("Users").child(currentUser.uid)
@@ -143,10 +145,16 @@ class EditProfile : AppCompatActivity() {
         val updatedUsername = usernameEditText.text.toString().ifEmpty { usernameEditText.hint.toString() }
         val updatedPhone = phoneEditText.text.toString().ifEmpty { phoneEditText.hint.toString() }
         val updatedBio = bioEditText.text.toString().ifEmpty { bioEditText.hint.toString() }
-        val updatedImageBase64 = selectedImageBitmap?.let { bitmapToBase64(getCircularBitmap(it)) } ?: ""
+
+        // Use the circular bitmap and compress it
+        val updatedImageBase64 = selectedImageBitmap?.let {
+            val circularBitmap = getCircularBitmap(it)
+            bitmapToBase64(circularBitmap)
+        } ?: ""
 
         updateUserData(userRef, updatedName, updatedUsername, updatedPhone, updatedImageBase64, updatedBio)
     }
+
 
     private fun updateUserData(
         userRef: com.google.firebase.database.DatabaseReference,
@@ -248,10 +256,27 @@ class EditProfile : AppCompatActivity() {
     }
 
     // Convert Bitmap to Base64
+//    private fun bitmapToBase64(bitmap: Bitmap): String {
+//        val byteArrayOutputStream = ByteArrayOutputStream()
+//        bitmap.compress(Bitmap.CompressFormat.JPEG, 50, byteArrayOutputStream)
+//        val byteArray = byteArrayOutputStream.toByteArray()
+//        return Base64.encodeToString(byteArray, Base64.DEFAULT)
+//    }
+
+    // Convert Bitmap to Base64 with resizing
     private fun bitmapToBase64(bitmap: Bitmap): String {
+        // Resize the bitmap to a fixed size (e.g., 200x200 pixels) to reduce storage size
+        val targetSize = 200 // Adjust this based on your needs (in pixels)
+        val resizedBitmap = Bitmap.createScaledBitmap(bitmap, targetSize, targetSize, true)
+
+        // Compress the resized bitmap
         val byteArrayOutputStream = ByteArrayOutputStream()
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 50, byteArrayOutputStream)
+        resizedBitmap.compress(Bitmap.CompressFormat.JPEG, 70, byteArrayOutputStream) // Quality 70 for balance
         val byteArray = byteArrayOutputStream.toByteArray()
+
+        // Recycle bitmaps to free memory
+        if (!resizedBitmap.isRecycled) resizedBitmap.recycle()
+
         return Base64.encodeToString(byteArray, Base64.DEFAULT)
     }
 
