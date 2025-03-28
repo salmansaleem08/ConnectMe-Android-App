@@ -275,85 +275,15 @@ class MessageActivity : AppCompatActivity() {
 
     private val client = OkHttpClient()
 
-//    private fun sendFCMNotification(receiverId: String, callerId: String, channelName: String, username: String) {
-//        Log.d("FCM", "Fetching FCM token for receiver: $receiverId")
-//        FirebaseDatabase.getInstance().reference.child("Users").child(receiverId).child("fcmToken")
-//            .addListenerForSingleValueEvent(object : ValueEventListener {
-//                override fun onDataChange(snapshot: DataSnapshot) {
-//                    val receiverToken = snapshot.getValue(String::class.java)
-//                    if (receiverToken.isNullOrEmpty()) {
-//                        Log.e("FCM", "No valid FCM token for $receiverId")
-//                        runOnUiThread {
-//                            Toast.makeText(this@MessageActivity, "$username is unavailable - no token", Toast.LENGTH_SHORT).show()
-//                        }
-//                        return
-//                    }
-//                    Log.d("FCM", "Sending v1 notification to: $receiverToken")
-//                    Thread {
-//                        try {
-//                            val accessToken = getAccessToken()
-//                            if (accessToken.isEmpty()) {
-//                                Log.e("FCM", "Failed to obtain access token")
-//                                runOnUiThread {
-//                                    Toast.makeText(this@MessageActivity, "Authentication failed", Toast.LENGTH_SHORT).show()
-//                                }
-//                                return@Thread
-//                            }
-//
-//                            val projectId = "assignment2db1" // Replace with your Firebase Project ID
-//                            val url = "https://fcm.googleapis.com/v1/projects/$projectId/messages:send"
-//                            val json = JSONObject().apply {
-//                                put("message", JSONObject().apply {
-//                                    put("token", receiverToken)
-//                                    put("data", JSONObject().apply {
-//                                        put("type", "call_invite")
-//                                        put("callerId", callerId)
-//                                        put("receiverId", receiverId)
-//                                        put("channelName", channelName)
-//                                        put("username", username)
-//                                    })
-//                                    put("android", JSONObject().apply {
-//                                        put("priority", "high")
-//                                    })
-//                                })
-//                            }.toString()
-//
-//                            val request = Request.Builder()
-//                                .url(url)
-//                                .post(json.toRequestBody("application/json; charset=utf-8".toMediaType()))
-//                                .header("Authorization", "Bearer $accessToken")
-//                                .build()
-//
-//                            client.newCall(request).execute().use { response ->
-//                                val responseBody = response.body?.string() ?: ""
-//                                if (response.isSuccessful) {
-//                                    Log.d("FCM", "Notification sent successfully to $receiverId")
-//                                } else {
-//                                    Log.e("FCM", "FCM v1 failed: ${response.code} - $responseBody")
-//                                    runOnUiThread {
-//                                        Toast.makeText(this@MessageActivity, "Failed to send call: ${response.code} - $responseBody", Toast.LENGTH_LONG).show()
-//                                    }
-//                                }
-//                            }
-//                        } catch (e: Exception) {
-//                            Log.e("FCM", "Error sending FCM v1: ${e.message}", e)
-//                            runOnUiThread {
-//                                Toast.makeText(this@MessageActivity, "Call failed: ${e.message}", Toast.LENGTH_SHORT).show()
-//                            }
-//                        }
-//                    }.start()
-//                }
-//
-//                override fun onCancelled(error: DatabaseError) {
-//                    Log.e("FCM", "Token fetch failed: ${error.message}")
-//                    runOnUiThread {
-//                        Toast.makeText(this@MessageActivity, "Error fetching token: ${error.message}", Toast.LENGTH_SHORT).show()
-//                    }
-//                }
-//            })
-//    }
 
-    private fun sendFCMNotification(receiverId: String, callerId: String, channelName: String, username: String, callType: String = "call_invite") {
+    private fun sendFCMNotification(
+        receiverId: String,
+        callerId: String,
+        channelName: String,
+        username: String,
+        callType: String = "call_invite",
+        messageText: String? = null // Add parameter for message content
+    ) {
         FirebaseDatabase.getInstance().reference.child("Users").child(receiverId).child("fcmToken")
             .addListenerForSingleValueEvent(object : ValueEventListener {
                 override fun onDataChange(snapshot: DataSnapshot) {
@@ -383,6 +313,9 @@ class MessageActivity : AppCompatActivity() {
                                         put("receiverId", receiverId)
                                         put("channelName", channelName)
                                         put("username", username)
+                                        if (callType == "message" && messageText != null) {
+                                            put("messageText", messageText) // Use the passed messageText
+                                        }
                                     })
                                     put("android", JSONObject().apply {
                                         put("priority", "high")
@@ -405,7 +338,7 @@ class MessageActivity : AppCompatActivity() {
                             }
                         } catch (e: Exception) {
                             Log.e("FCM", "Error sending FCM v1: ${e.message}", e)
-                            Toast.makeText(this@MessageActivity, "Call failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(this@MessageActivity, "Notification failed: ${e.message}", Toast.LENGTH_SHORT).show()
                         }
                     }.start()
                 }
@@ -416,9 +349,6 @@ class MessageActivity : AppCompatActivity() {
                 }
             })
     }
-
-
-
 
 
 
@@ -858,6 +788,7 @@ class MessageActivity : AppCompatActivity() {
         })
     }
 
+
     private fun sendMessage(text: String? = null, imageBase64: String? = null, postId: String? = null) {
         val chatId = getChatId(currentUserId!!, otherUserId!!)
         val message = Message(
@@ -869,7 +800,46 @@ class MessageActivity : AppCompatActivity() {
             vanishMode = vanishMode
         )
         database.child(chatId).child("messages").push().setValue(message)
+            .addOnSuccessListener {
+                // Fetch sender's username from Firebase Database
+                FirebaseDatabase.getInstance().reference.child("Users").child(currentUserId!!)
+                    .child("username")
+                    .addListenerForSingleValueEvent(object : ValueEventListener {
+                        override fun onDataChange(snapshot: DataSnapshot) {
+                            val senderUsername = snapshot.getValue(String::class.java) ?: "Unknown"
+                            val messageContent = text ?: if (imageBase64 != null) "Image" else "Message"
+                            sendFCMNotification(
+                                receiverId = otherUserId!!,
+                                callerId = currentUserId!!,
+                                channelName = chatId,
+                                username = senderUsername, // Use the fetched username
+                                callType = "message",
+                                messageText = messageContent
+                            )
+                        }
+
+                        override fun onCancelled(error: DatabaseError) {
+                            Log.e("MessageActivity", "Failed to fetch sender username: ${error.message}")
+                            // Fallback to "Unknown" if username fetch fails
+                            val messageContent = text ?: if (imageBase64 != null) "Image" else "Message"
+                            sendFCMNotification(
+                                receiverId = otherUserId!!,
+                                callerId = currentUserId!!,
+                                channelName = chatId,
+                                username = "Unknown",
+                                callType = "message",
+                                messageText = messageContent
+                            )
+                        }
+                    })
+            }
+            .addOnFailureListener {
+                Log.e("MessageActivity", "Failed to send message: ${it.message}")
+                Toast.makeText(this, "Failed to send message", Toast.LENGTH_SHORT).show()
+            }
     }
+
+
 
     private fun getChatId(user1: String, user2: String): String {
         return if (user1 < user2) {
