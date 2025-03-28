@@ -17,5 +17,6 @@ data class User(
     val bio: String = "",
     val recentSearches: MutableList<String> = mutableListOf(),
     val online: Boolean = false,         // Add this
-    val lastSeen: Long = 0L              // Optional: for "Last seen" info
+    val lastSeen: Long = 0L, // Optional: for "Last seen" info
+    val fcmToken: String = "" // Add this field for FCM token
 )

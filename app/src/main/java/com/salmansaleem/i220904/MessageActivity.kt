@@ -4,11 +4,10 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Base64
-import android.util.Log
-import android.view.View
 import android.view.animation.AlphaAnimation
 import android.widget.*
 import androidx.appcompat.app.AlertDialog
@@ -20,7 +19,22 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.*
+import com.google.firebase.messaging.FirebaseMessaging
+import okhttp3.MediaType.Companion.toMediaType
+import org.json.JSONObject
 import java.io.ByteArrayOutputStream
+import java.io.InputStream
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.security.KeyFactory
+
+import android.util.Log
+import io.jsonwebtoken.Jwts
+import io.jsonwebtoken.SignatureAlgorithm
+
+import java.security.spec.PKCS8EncodedKeySpec
+
 
 class MessageActivity : AppCompatActivity() {
     private lateinit var messagesRecyclerView: RecyclerView
@@ -52,6 +66,25 @@ class MessageActivity : AppCompatActivity() {
 
         initializeViews()
 
+
+        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                val token = task.result
+                Log.d("FCM", "Token refreshed: $token")
+                val userId = FirebaseAuth.getInstance().currentUser?.uid
+                if (userId != null) {
+                    FirebaseDatabase.getInstance().reference
+                        .child("Users")
+                        .child(userId)
+                        .child("fcmToken")
+                        .setValue(token)
+                }
+            } else {
+                Log.e("FCM", "Token refresh failed: ${task.exception?.message}")
+            }
+        }
+
+
         currentUserId = FirebaseAuth.getInstance().currentUser?.uid
         otherUserId = intent.getStringExtra("OTHER_USER_ID")
 
@@ -80,8 +113,42 @@ class MessageActivity : AppCompatActivity() {
         loadMessages()
         observeOnlineStatus()
         setupClickListeners()
-        observeVanishMode(chatId) // Add this to sync vanish mode
+        observeVanishMode(chatId)
     }
+
+
+
+
+    private fun checkNotificationPermission(): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), NOTIFICATION_PERMISSION_CODE)
+                return false
+            }
+        }
+        return true
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == NOTIFICATION_PERMISSION_CODE && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            // Retry sending call invite if permission granted
+            callButton.performClick()
+        } else {
+            Toast.makeText(this, "Notification permission denied", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    companion object {
+        private const val NOTIFICATION_PERMISSION_CODE = 101
+    }
+
+
+
+
+
+
+
 
     private fun initializeViews() {
         messagesRecyclerView = findViewById(R.id.messagesRecyclerView)
@@ -126,17 +193,296 @@ class MessageActivity : AppCompatActivity() {
             }
         }
 
+//        callButton.setOnClickListener {
+//            val intent = Intent(this, AudioChatActivity::class.java).apply {
+//                putExtra("USERNAME", otherUsernameTextView.text.toString())
+//                putExtra("PROFILE_PIC_BASE64", "") // Pass Base64 string if available, or fetch from Firebase
+//                putExtra("CHANNEL_NAME", getChatId(currentUserId!!, otherUserId!!)) // Use chat ID as channel
+//            }
+//
+//            startActivity(intent)
+//        }
+        callButton.setOnClickListener {
+            if (checkNotificationPermission()) {
+                val callerId = currentUserId!!
+                val receiverId = otherUserId!!
+                val channelName = getChatId(callerId, receiverId)
+                val username = otherUsernameTextView.text.toString()
+                sendCallInvite(callerId, receiverId, channelName, username)
+            }
+        }
+
         photoButton.setOnClickListener { openGallery() }
         vanishModeButton.setOnClickListener { toggleVanishMode() }
         backButton.setOnClickListener { finish() }
     }
 
+    private fun sendCallInvite(callerId: String, receiverId: String, channelName: String, username: String) {
+        val callData = mapOf(
+            "callerId" to callerId,
+            "receiverId" to receiverId,
+            "channelName" to channelName,
+            "username" to username,
+            "status" to "pending",
+            "type" to "call_invite",
+            "timestamp" to System.currentTimeMillis()
+        )
+
+        // Store call invite in Firebase
+        FirebaseDatabase.getInstance().reference.child("CallInvites").child(receiverId)
+            .setValue(callData)
+            .addOnSuccessListener {
+                Log.d("MessageActivity", "Call invite stored for $receiverId")
+                // Fetch receiver's FCM token and send notification
+                sendFCMNotification(receiverId, callerId, channelName, username)
+                listenForCallResponse(callerId, receiverId, channelName, username)
+            }
+            .addOnFailureListener { e ->
+                Log.e("MessageActivity", "Failed to send call invite: ${e.message}")
+                Toast.makeText(this, "Failed to initiate call", Toast.LENGTH_SHORT).show()
+            }
+    }
+
+
+    private val client = OkHttpClient()
+
+    private fun sendFCMNotification(receiverId: String, callerId: String, channelName: String, username: String) {
+        Log.d("FCM", "Fetching FCM token for receiver: $receiverId")
+        FirebaseDatabase.getInstance().reference.child("Users").child(receiverId).child("fcmToken")
+            .addListenerForSingleValueEvent(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    val receiverToken = snapshot.getValue(String::class.java)
+                    if (receiverToken.isNullOrEmpty()) {
+                        Log.e("FCM", "No valid FCM token for $receiverId")
+                        runOnUiThread {
+                            Toast.makeText(this@MessageActivity, "$username is unavailable - no token", Toast.LENGTH_SHORT).show()
+                        }
+                        return
+                    }
+                    Log.d("FCM", "Sending v1 notification to: $receiverToken")
+                    Thread {
+                        try {
+                            val accessToken = getAccessToken()
+                            if (accessToken.isEmpty()) {
+                                Log.e("FCM", "Failed to obtain access token")
+                                runOnUiThread {
+                                    Toast.makeText(this@MessageActivity, "Authentication failed", Toast.LENGTH_SHORT).show()
+                                }
+                                return@Thread
+                            }
+
+                            val projectId = "assignment2db1" // Replace with your Firebase Project ID
+                            val url = "https://fcm.googleapis.com/v1/projects/$projectId/messages:send"
+                            val json = JSONObject().apply {
+                                put("message", JSONObject().apply {
+                                    put("token", receiverToken)
+                                    put("data", JSONObject().apply {
+                                        put("type", "call_invite")
+                                        put("callerId", callerId)
+                                        put("receiverId", receiverId)
+                                        put("channelName", channelName)
+                                        put("username", username)
+                                    })
+                                    put("android", JSONObject().apply {
+                                        put("priority", "high")
+                                    })
+                                })
+                            }.toString()
+
+                            val request = Request.Builder()
+                                .url(url)
+                                .post(json.toRequestBody("application/json; charset=utf-8".toMediaType()))
+                                .header("Authorization", "Bearer $accessToken")
+                                .build()
+
+                            client.newCall(request).execute().use { response ->
+                                val responseBody = response.body?.string() ?: ""
+                                if (response.isSuccessful) {
+                                    Log.d("FCM", "Notification sent successfully to $receiverId")
+                                } else {
+                                    Log.e("FCM", "FCM v1 failed: ${response.code} - $responseBody")
+                                    runOnUiThread {
+                                        Toast.makeText(this@MessageActivity, "Failed to send call: ${response.code} - $responseBody", Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {
+                            Log.e("FCM", "Error sending FCM v1: ${e.message}", e)
+                            runOnUiThread {
+                                Toast.makeText(this@MessageActivity, "Call failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }.start()
+                }
+
+                override fun onCancelled(error: DatabaseError) {
+                    Log.e("FCM", "Token fetch failed: ${error.message}")
+                    runOnUiThread {
+                        Toast.makeText(this@MessageActivity, "Error fetching token: ${error.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            })
+    }
+    private fun getAccessToken(): String {
+        try {
+            val inputStream: InputStream = resources.openRawResource(R.raw.service_account)
+            val jsonString = inputStream.bufferedReader().use { it.readText() }
+            val json = JSONObject(jsonString)
+            val clientEmail = json.getString("client_email")
+            val privateKeyPem = json.getString("private_key")
+                .replace("-----BEGIN PRIVATE KEY-----", "")
+                .replace("-----END PRIVATE KEY-----", "")
+                .replace("\\n", "")
+                .trim()
+            val tokenUri = json.getString("token_uri")
+
+            Log.d("FCM", "Raw private key (first 50 chars): ${privateKeyPem.take(50)}...")
+
+            // Decode using android.util.Base64
+            val keyBytes = try {
+                Base64.decode(privateKeyPem, Base64.DEFAULT) // Use DEFAULT flag
+            } catch (e: IllegalArgumentException) {
+                Log.e("FCM", "Base64 decode failed: ${e.message}", e)
+                return ""
+            }
+            Log.d("FCM", "Decoded key length: ${keyBytes.size} bytes")
+
+            val keySpec = PKCS8EncodedKeySpec(keyBytes)
+            val keyFactory = KeyFactory.getInstance("RSA")
+            val privateKey = try {
+                keyFactory.generatePrivate(keySpec)
+            } catch (e: Exception) {
+                Log.e("FCM", "Private key parsing failed: ${e.message}", e)
+                return ""
+            }
+
+            val now = System.currentTimeMillis() / 1000
+            val jwt = Jwts.builder()
+                .setHeaderParam("alg", "RS256")
+                .setHeaderParam("typ", "JWT")
+                .setIssuer(clientEmail)
+                .setAudience(tokenUri)
+                .setIssuedAt(java.util.Date(now * 1000))
+                .setExpiration(java.util.Date((now + 3600) * 1000))
+                .claim("scope", "https://www.googleapis.com/auth/firebase.messaging")
+                .signWith(privateKey, SignatureAlgorithm.RS256)
+                .compact()
+            Log.d("FCM", "Generated JWT: $jwt")
+
+            val requestBody = "grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=$jwt"
+                .toRequestBody("application/x-www-form-urlencoded".toMediaType())
+            val request = Request.Builder()
+                .url(tokenUri)
+                .post(requestBody)
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                val responseBody = response.body?.string() ?: "{}"
+                if (response.isSuccessful) {
+                    val responseJson = JSONObject(responseBody)
+                    val accessToken = responseJson.getString("access_token")
+                    Log.d("FCM", "Access token obtained: $accessToken")
+                    return accessToken
+                } else {
+                    Log.e("FCM", "Token request failed: ${response.code} - $responseBody")
+                    return ""
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("FCM", "Error getting access token: ${e.message}", e)
+            return ""
+        }
+    }
+
+
+    private fun listenForCallResponse(callerId: String, receiverId: String, channelName: String, username: String) {
+        val callRef = FirebaseDatabase.getInstance().reference.child("CallInvites").child(receiverId)
+        callRef.addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val status = snapshot.child("status").getValue(String::class.java)
+                when (status) {
+                    "accepted" -> {
+                        Log.d("MessageActivity", "Call accepted by $receiverId")
+                        startAudioChat(callerId, receiverId, channelName, username, true)
+                        callRef.removeEventListener(this) // Stop listening after acceptance
+                    }
+                    "rejected" -> {
+                        Log.d("MessageActivity", "Call rejected by $receiverId")
+                        Toast.makeText(this@MessageActivity, "$username is busy", Toast.LENGTH_SHORT).show()
+                        callRef.removeValue() // Clean up
+                        callRef.removeEventListener(this)
+                    }
+                }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e("MessageActivity", "Error listening for call response: ${error.message}")
+            }
+        })
+    }
+
+    private fun startAudioChat(callerId: String, receiverId: String, channelName: String, username: String, isCaller: Boolean) {
+        FirebaseDatabase.getInstance().reference.child("Users").child(if (isCaller) receiverId else callerId)
+            .child("profileImageBase64")
+            .addListenerForSingleValueEvent(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    val profilePicBase64 = snapshot.getValue(String::class.java) ?: ""
+                    val intent = Intent(this@MessageActivity, AudioChatActivity::class.java).apply {
+                        putExtra("USERNAME", username)
+                        putExtra("CHANNEL_NAME", channelName)
+                        putExtra("CALLER_ID", callerId)
+                        putExtra("RECEIVER_ID", receiverId)
+                        putExtra("PROFILE_PIC_BASE64", profilePicBase64)
+                        putExtra("IS_CALLER", isCaller)
+                    }
+                    startActivity(intent)
+                }
+                override fun onCancelled(error: DatabaseError) {
+                    // Fallback with empty profile pic
+                    val intent = Intent(this@MessageActivity, AudioChatActivity::class.java).apply {
+                        putExtra("USERNAME", username)
+                        putExtra("CHANNEL_NAME", channelName)
+                        putExtra("CALLER_ID", callerId)
+                        putExtra("RECEIVER_ID", receiverId)
+                        putExtra("PROFILE_PIC_BASE64", "")
+                        putExtra("IS_CALLER", isCaller)
+                    }
+                    startActivity(intent)
+                }
+            })
+    }
+
+    private fun sendCallNotification(callerId: String, receiverId: String, channelName: String, username: String) {
+        val callData = mapOf(
+            "callerId" to callerId,
+            "receiverId" to receiverId,
+            "channelName" to channelName,
+            "username" to username,
+            "type" to "call_invite",
+            "timestamp" to System.currentTimeMillis()
+        )
+
+        // Store call invite in Firebase for status tracking
+        FirebaseDatabase.getInstance().reference.child("CallInvites").child(receiverId).setValue(callData)
+            .addOnSuccessListener {
+                Log.d("MessageActivity", "Call notification sent to $receiverId")
+            }
+            .addOnFailureListener { e ->
+                Log.e("MessageActivity", "Failed to send call notification: ${e.message}")
+            }
+    }
+
+
+
+
     private fun observeVanishMode(chatId: String) {
         val vanishModeRef = database.child(chatId).child("vanishMode")
         vanishModeRef.addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                val enabled = snapshot.child("enabled").getValue(Boolean::class.java) ?: false
-                val timestamp = snapshot.child("timestamp").getValue(Long::class.java)
+                val vanishModeData = snapshot.getValue(VanishMode::class.java)
+                val enabled = vanishModeData?.enabled ?: false
+                val timestamp = vanishModeData?.timestamp
 
                 if (enabled != vanishMode) {
                     vanishMode = enabled
@@ -146,6 +492,7 @@ class MessageActivity : AppCompatActivity() {
                     } else {
                         disableVanishModeUI()
                     }
+                    messageAdapter.setVanishMode(vanishMode)
                 }
             }
 
@@ -156,40 +503,69 @@ class MessageActivity : AppCompatActivity() {
     }
 
     private fun toggleVanishMode() {
+        val chatId = getChatId(currentUserId!!, otherUserId!!)
         if (!vanishMode) {
-            enableVanishMode()
-            vanishModeButton.setImageResource(R.drawable.iconn)
+            enableVanishMode(chatId)
         } else {
-            disableVanishMode()
-            vanishModeButton.setImageResource(R.drawable.iconn)
+            disableVanishMode(chatId)
         }
     }
 
+    private fun enableVanishMode(chatId: String) {
+        vanishMode = true
+        vanishModeStartTimestamp = System.currentTimeMillis()
+        val vanishModeData = VanishMode(enabled = true, timestamp = vanishModeStartTimestamp!!)
+        database.child(chatId).child("vanishMode").setValue(vanishModeData)
+            .addOnSuccessListener {
+                enableVanishModeUI()
+                messageAdapter.setVanishMode(true)
+            }
+            .addOnFailureListener {
+                Log.e("MessageActivity", "Failed to enable vanish mode: ${it.message}")
+                vanishMode = false
+            }
+    }
+
+    private fun disableVanishMode(chatId: String) {
+        vanishMode = false
+        val vanishModeData = VanishMode(enabled = false, timestamp = System.currentTimeMillis())
+        database.child(chatId).child("vanishMode").setValue(vanishModeData)
+            .addOnSuccessListener {
+                disableVanishModeUI()
+                clearVanishModeMessages(chatId)
+                messageAdapter.setVanishMode(false)
+            }
+            .addOnFailureListener {
+                Log.e("MessageActivity", "Failed to disable vanish mode: ${it.message}")
+                vanishMode = true
+            }
+    }
+
     private fun enableVanishModeUI() {
-        vanishModeButton.setImageResource(R.drawable.iconn) // Update with your ON icon
+        vanishModeButton.setImageResource(R.drawable.iconn) // Replace with your ON icon
         messagesRecyclerView.setBackgroundColor(resources.getColor(android.R.color.black))
         Toast.makeText(this, "Vanish Mode Enabled", Toast.LENGTH_SHORT).show()
         val fadeIn = AlphaAnimation(0f, 1f).apply { duration = 500 }
         messagesRecyclerView.startAnimation(fadeIn)
     }
 
-
     private fun disableVanishModeUI() {
-        vanishModeButton.setImageResource(R.drawable.iconn) // Update with your OFF icon
+        vanishModeButton.setImageResource(R.drawable.iconn) // Replace with your OFF icon
         messagesRecyclerView.setBackgroundColor(resources.getColor(android.R.color.white))
         Toast.makeText(this, "Back to Normal Mode", Toast.LENGTH_SHORT).show()
-        clearVanishModeMessages()
     }
 
-    private fun clearVanishModeMessages() {
-        val chatId = getChatId(currentUserId!!, otherUserId!!)
+    private fun clearVanishModeMessages(chatId: String) {
         if (vanishModeStartTimestamp != null) {
             database.child(chatId).child("messages").orderByChild("timestamp")
                 .startAt(vanishModeStartTimestamp!!.toDouble())
                 .addListenerForSingleValueEvent(object : ValueEventListener {
                     override fun onDataChange(snapshot: DataSnapshot) {
                         for (data in snapshot.children) {
-                            data.ref.removeValue()
+                            val message = data.getValue(Message::class.java)
+                            if (message?.vanishMode == true) {
+                                data.ref.removeValue()
+                            }
                         }
                         vanishModeStartTimestamp = null
                     }
@@ -199,7 +575,6 @@ class MessageActivity : AppCompatActivity() {
                 })
         }
     }
-
 
     private fun observeOnlineStatus() {
         val userRef = FirebaseDatabase.getInstance().reference.child("Users").child(otherUserId!!)
@@ -250,20 +625,26 @@ class MessageActivity : AppCompatActivity() {
     }
 
     private fun openGallery() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE), STORAGE_PERMISSION_CODE)
+        val permission = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.READ_MEDIA_IMAGES
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+
+        if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(permission), STORAGE_PERMISSION_CODE)
         } else {
             val intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
             startActivityForResult(intent, PICK_IMAGE_REQUEST)
         }
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == STORAGE_PERMISSION_CODE && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            openGallery()
-        }
-    }
+//    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+//        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+//        if (requestCode == STORAGE_PERMISSION_CODE && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+//            openGallery()
+//        }
+//    }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
@@ -304,7 +685,7 @@ class MessageActivity : AppCompatActivity() {
 
     private fun loadMessages() {
         val chatId = getChatId(currentUserId!!, otherUserId!!)
-        database.child(chatId).orderByChild("timestamp").addValueEventListener(object : ValueEventListener {
+        database.child(chatId).child("messages").orderByChild("timestamp").addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val messages = mutableListOf<Message>()
                 for (data in snapshot.children) {
@@ -330,7 +711,7 @@ class MessageActivity : AppCompatActivity() {
             postId = postId,
             vanishMode = vanishMode
         )
-        database.child(chatId).push().setValue(message)
+        database.child(chatId).child("messages").push().setValue(message)
     }
 
     private fun getChatId(user1: String, user2: String): String {
@@ -341,37 +722,8 @@ class MessageActivity : AppCompatActivity() {
         }
     }
 
-    private fun enableVanishMode() {
-        vanishMode = true
-        vanishModeStartTimestamp = System.currentTimeMillis()
-        Toast.makeText(this, "Vanish Mode Enabled", Toast.LENGTH_SHORT).show()
-        val fadeIn = AlphaAnimation(0f, 1f).apply { duration = 500 }
-        messagesRecyclerView.startAnimation(fadeIn)
-        messagesRecyclerView.setBackgroundColor(resources.getColor(android.R.color.black))
-        sendMessage(text = "VANISH_MODE_ENABLED")
-    }
-
-    private fun disableVanishMode() {
-        vanishMode = false
-        val chatId = getChatId(currentUserId!!, otherUserId!!)
-        database.child(chatId).orderByChild("timestamp").startAt(vanishModeStartTimestamp!!.toDouble())
-            .addListenerForSingleValueEvent(object : ValueEventListener {
-                override fun onDataChange(snapshot: DataSnapshot) {
-                    for (data in snapshot.children) {
-                        data.ref.removeValue()
-                    }
-                    messagesRecyclerView.setBackgroundColor(resources.getColor(android.R.color.white))
-                    vanishModeStartTimestamp = null
-                    Toast.makeText(this@MessageActivity, "Back to Normal Mode", Toast.LENGTH_SHORT).show()
-                }
-                override fun onCancelled(error: DatabaseError) {
-                    Log.e("MessageActivity", "Error disabling vanish mode: ${error.message}")
-                }
-            })
-    }
-
     private fun handleMessageClick(message: Message, position: Int) {
-        if (message.senderId != currentUserId || message.text == "VANISH_MODE_ENABLED") return
+        if (message.senderId != currentUserId || message.vanishMode || message.text == "This message was deleted") return
         val currentTime = System.currentTimeMillis()
         if (currentTime - message.timestamp > 5 * 60 * 1000) {
             Toast.makeText(this, "Cannot edit/delete after 5 minutes", Toast.LENGTH_SHORT).show()
@@ -412,7 +764,7 @@ class MessageActivity : AppCompatActivity() {
 
     private fun editMessage(message: Message, newText: String, position: Int) {
         val chatId = getChatId(currentUserId!!, otherUserId!!)
-        database.child(chatId).orderByChild("timestamp").equalTo(message.timestamp.toDouble())
+        database.child(chatId).child("messages").orderByChild("timestamp").equalTo(message.timestamp.toDouble())
             .addListenerForSingleValueEvent(object : ValueEventListener {
                 override fun onDataChange(snapshot: DataSnapshot) {
                     for (data in snapshot.children) {
@@ -429,12 +781,21 @@ class MessageActivity : AppCompatActivity() {
 
     private fun deleteMessage(message: Message, position: Int) {
         val chatId = getChatId(currentUserId!!, otherUserId!!)
-        database.child(chatId).orderByChild("timestamp").equalTo(message.timestamp.toDouble())
+        database.child(chatId).child("messages").orderByChild("timestamp").equalTo(message.timestamp.toDouble())
             .addListenerForSingleValueEvent(object : ValueEventListener {
                 override fun onDataChange(snapshot: DataSnapshot) {
                     for (data in snapshot.children) {
-                        data.ref.child("isDeleted").setValue(true)
-                        messageAdapter.removeMessage(position)
+                        data.ref.removeValue() // Completely remove the original message
+                        val deletedMessage = Message(
+                            senderId = message.senderId,
+                            receiverId = message.receiverId,
+                            text = "This message was deleted",
+                            timestamp = message.timestamp,
+                            isEdited = false,
+                            isDeleted = true // Mark as deleted to prevent further actions
+                        )
+                        database.child(chatId).child("messages").push().setValue(deletedMessage)
+                        messageAdapter.updateMessage(position, deletedMessage)
                     }
                 }
                 override fun onCancelled(error: DatabaseError) {
@@ -445,6 +806,9 @@ class MessageActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        if (vanishMode) disableVanishMode()
+        if (vanishMode) {
+            val chatId = getChatId(currentUserId!!, otherUserId!!)
+            disableVanishMode(chatId)
+        }
     }
 }

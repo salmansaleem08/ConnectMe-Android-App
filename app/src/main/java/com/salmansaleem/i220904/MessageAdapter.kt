@@ -23,28 +23,34 @@ class MessageAdapter(
         private const val VIEW_TYPE_NOTIFICATION = 3
     }
 
-    class SentViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        val text: TextView = itemView.findViewById(R.id.messageText)
-        val image: ImageView = itemView.findViewById(R.id.messageImage)
-        val postReference: TextView = itemView.findViewById(R.id.postReference)
-        val timestamp: TextView = itemView.findViewById(R.id.timestamp)
-    }
+    private var isVanishMode = false
+    private var vanishModeNotification = Message(
+        senderId = "",
+        receiverId = "",
+        text = "VANISH_MODE_NOTIFICATION",
+        timestamp = System.currentTimeMillis() // Use current time when created
+    )
 
-    class ReceivedViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        val text: TextView = itemView.findViewById(R.id.messageText)
-        val image: ImageView = itemView.findViewById(R.id.messageImage)
-        val postReference: TextView = itemView.findViewById(R.id.postReference)
-        val timestamp: TextView = itemView.findViewById(R.id.timestamp)
-    }
-
-    class NotificationViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        val text: TextView = itemView.findViewById(R.id.notificationText)
+    fun setVanishMode(enabled: Boolean) {
+        if (isVanishMode != enabled) {
+            isVanishMode = enabled
+            if (isVanishMode && !messages.contains(vanishModeNotification)) {
+                // Add notification as the newest message when Vanish Mode is enabled
+                vanishModeNotification.timestamp = System.currentTimeMillis()
+                messages.add(vanishModeNotification)
+                notifyItemInserted(messages.size - 1)
+            } else if (!isVanishMode && messages.contains(vanishModeNotification)) {
+                val index = messages.indexOf(vanishModeNotification)
+                messages.removeAt(index)
+                notifyItemRemoved(index)
+            }
+        }
     }
 
     override fun getItemViewType(position: Int): Int {
         val message = messages[position]
         return when {
-            message.text in listOf("VANISH_MODE_ENABLED", "SCREENSHOT_TAKEN") -> VIEW_TYPE_NOTIFICATION
+            message.text == "VANISH_MODE_NOTIFICATION" -> VIEW_TYPE_NOTIFICATION
             message.senderId == currentUserId -> VIEW_TYPE_SENT
             else -> VIEW_TYPE_RECEIVED
         }
@@ -71,27 +77,27 @@ class MessageAdapter(
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         val message = messages[position]
         val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
-        val timestampText = timeFormat.format(Date(message.timestamp))
+        val timestampText = if (message.timestamp > 0) timeFormat.format(Date(message.timestamp)) else ""
 
         when (holder) {
             is SentViewHolder -> {
                 bindMessage(holder, message, timestampText)
                 holder.itemView.setOnClickListener {
-                    onMessageClick(message, holder.adapterPosition)
+                    if (message.text != "This message was deleted") { // Prevent clicking deleted messages
+                        onMessageClick(message, position)
+                    }
                 }
             }
             is ReceivedViewHolder -> {
                 bindMessage(holder, message, timestampText)
                 holder.itemView.setOnClickListener {
-                    onMessageClick(message, holder.adapterPosition)
+                    if (message.text != "This message was deleted") { // Prevent clicking deleted messages
+                        onMessageClick(message, position)
+                    }
                 }
             }
             is NotificationViewHolder -> {
-                holder.text.text = when (message.text) {
-                    "VANISH_MODE_ENABLED" -> "Vanish mode enabled. Messages will disappear when chat closes."
-                    "SCREENSHOT_TAKEN" -> "A screenshot was taken!"
-                    else -> ""
-                }
+                holder.text.text = "You've turned on vanish mode. New messages will disappear after you close the chat."
             }
         }
     }
@@ -127,7 +133,13 @@ class MessageAdapter(
 
     fun updateMessages(newMessages: List<Message>) {
         messages.clear()
-        messages.addAll(newMessages)
+        messages.addAll(newMessages.filter { it.text != "VANISH_MODE_NOTIFICATION" })
+        if (isVanishMode && !messages.contains(vanishModeNotification)) {
+            // Add notification only if it’s not already in the list
+            messages.add(vanishModeNotification)
+        }
+
+        messages.sortBy { it.timestamp }
         notifyDataSetChanged()
     }
 
@@ -139,5 +151,23 @@ class MessageAdapter(
     fun removeMessage(position: Int) {
         messages.removeAt(position)
         notifyItemRemoved(position)
+    }
+
+    class SentViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        val text: TextView = itemView.findViewById(R.id.messageText)
+        val image: ImageView = itemView.findViewById(R.id.messageImage)
+        val postReference: TextView = itemView.findViewById(R.id.postReference)
+        val timestamp: TextView = itemView.findViewById(R.id.timestamp)
+    }
+
+    class ReceivedViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        val text: TextView = itemView.findViewById(R.id.messageText)
+        val image: ImageView = itemView.findViewById(R.id.messageImage)
+        val postReference: TextView = itemView.findViewById(R.id.postReference)
+        val timestamp: TextView = itemView.findViewById(R.id.timestamp)
+    }
+
+    class NotificationViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        val text: TextView = itemView.findViewById(R.id.notificationText)
     }
 }

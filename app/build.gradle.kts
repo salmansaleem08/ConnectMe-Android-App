@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.google.gms.google.services) // ✅ Ensure this is included
+
 }
 
 android {
@@ -36,7 +37,10 @@ android {
     }
 }
 
+
+
 dependencies {
+
     implementation(platform("com.google.firebase:firebase-bom:32.7.3"))
     implementation("com.google.firebase:firebase-database")  // ✅ Managed by BoM
 
@@ -59,6 +63,20 @@ dependencies {
     implementation(libs.firebase.storage.ktx)
     implementation(libs.firebase.crashlytics.buildtools)
     annotationProcessor("com.github.bumptech.glide:compiler:4.12.0")
+
+
+    implementation("com.google.firebase:firebase-functions:20.4.0")
+    implementation("com.google.firebase:firebase-messaging:23.4.1")
+
+
+    implementation ("io.agora.rtc:full-sdk:4.2.6") // Use the latest version
+    //implementation ("com.google.firebase:firebase-messaging:23.1.2")
+
+
+     // If i include theses three i get many errors..
+
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("io.jsonwebtoken:jjwt:0.12.6")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
