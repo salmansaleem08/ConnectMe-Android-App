@@ -136,6 +136,19 @@ class SocialAppTests {
 
     }
 
+    @Test
+    fun testInviteSending(){
 
+        onView(withId(R.id.login2))
+            .perform(scrollTo(), click())
+
+
+        onView(withId(R.id.username))
+            .perform(scrollTo(), typeText("salmansaleem08"), closeSoftKeyboard())
+        onView(withId(R.id.password))
+            .perform(scrollTo(), typeText("123456"), closeSoftKeyboard())
+
+        onView(withId(R.id.login)).perform(scrollTo(), click())
+    }
 
 }
