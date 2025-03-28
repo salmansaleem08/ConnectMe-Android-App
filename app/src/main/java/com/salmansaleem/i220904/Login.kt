@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.EditText
 import android.widget.RelativeLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.firebase.auth.FirebaseAuth
@@ -38,6 +39,12 @@ class Login : AppCompatActivity() {
             }
 
             loginUser(enteredUsername, pass)
+        }
+
+        var btn1 = findViewById<TextView>(R.id.signup)
+        btn1.setOnClickListener {
+            val intent = Intent(this, SignUp::class.java)
+            startActivity(intent)
         }
     }
 

@@ -91,6 +91,29 @@ class Contacts : AppCompatActivity() {
         adapter2 = FollowRequestAdapter(RequestList)
         recyclerView2.adapter = adapter2
         fetchRequestsFromDatabase()
+
+
+        findViewById<ImageView>(R.id.search).setOnClickListener {
+            startActivity(Intent(this, Search::class.java))
+        }
+
+        findViewById<ImageView>(R.id.add).setOnClickListener {
+            startActivity(Intent(this, StoryActivity::class.java))
+        }
+
+        findViewById<ImageView>(R.id.myProfile).setOnClickListener {
+            startActivity(Intent(this, MyProfile::class.java))
+        }
+
+        findViewById<ImageView>(R.id.home).setOnClickListener {
+            startActivity(Intent(this, MainActivity::class.java))
+        }
+
+        findViewById<ImageView>(R.id.contacts).setOnClickListener {
+            startActivity(Intent(this, Contacts::class.java))
+        }
+
+
     }
 
 

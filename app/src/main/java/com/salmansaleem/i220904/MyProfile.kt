@@ -79,6 +79,27 @@ class MyProfile : AppCompatActivity() {
             val intent = Intent(this, FollowingActivity::class.java)
             startActivity(intent)
         }
+
+
+        findViewById<ImageView>(R.id.search).setOnClickListener {
+            startActivity(Intent(this, Search::class.java))
+        }
+
+        findViewById<ImageView>(R.id.add).setOnClickListener {
+            startActivity(Intent(this, StoryActivity::class.java))
+        }
+
+        findViewById<ImageView>(R.id.myProfile).setOnClickListener {
+            startActivity(Intent(this, MyProfile::class.java))
+        }
+
+        findViewById<ImageView>(R.id.home).setOnClickListener {
+            startActivity(Intent(this, MainActivity::class.java))
+        }
+
+        findViewById<ImageView>(R.id.contacts).setOnClickListener {
+            startActivity(Intent(this, Contacts::class.java))
+        }
     }
 
     private fun loadUserData() {

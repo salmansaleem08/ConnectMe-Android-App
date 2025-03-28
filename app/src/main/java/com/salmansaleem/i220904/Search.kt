@@ -1,5 +1,6 @@
 package com.salmansaleem.i220904
 
+import android.content.Intent
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -63,6 +64,27 @@ class Search : AppCompatActivity() {
         setupSearchListener()
         setupFilterListeners()
         loadRecentSearches()
+
+
+        findViewById<ImageView>(R.id.search).setOnClickListener {
+            startActivity(Intent(this, Search::class.java))
+        }
+
+        findViewById<ImageView>(R.id.add).setOnClickListener {
+            startActivity(Intent(this, StoryActivity::class.java))
+        }
+
+        findViewById<ImageView>(R.id.myProfile).setOnClickListener {
+            startActivity(Intent(this, MyProfile::class.java))
+        }
+
+        findViewById<ImageView>(R.id.home).setOnClickListener {
+            startActivity(Intent(this, MainActivity::class.java))
+        }
+
+        findViewById<ImageView>(R.id.contacts).setOnClickListener {
+            startActivity(Intent(this, Contacts::class.java))
+        }
     }
 
     private fun fetchCurrentUser() {
