@@ -50,6 +50,7 @@ class MessageActivity : AppCompatActivity() {
     private lateinit var videoCallButton: ImageView
     private lateinit var otherProfilePic: ImageView
     private lateinit var viewProfileButton: Button
+    private lateinit var mainscreen :RelativeLayout
 
     private lateinit var database: DatabaseReference
     private var currentUserId: String? = null
@@ -163,6 +164,7 @@ class MessageActivity : AppCompatActivity() {
         videoCallButton = findViewById(R.id.videocall)
         otherProfilePic = findViewById(R.id.otherProfilePic)
         viewProfileButton = findViewById(R.id.viewProfileButton)
+        mainscreen = findViewById(R.id.main)
     }
 
     private fun setupPresence() {
@@ -630,7 +632,12 @@ class MessageActivity : AppCompatActivity() {
 
     private fun enableVanishModeUI() {
         vanishModeButton.setImageResource(R.drawable.iconn) // Replace with your ON icon
-        messagesRecyclerView.setBackgroundColor(resources.getColor(android.R.color.black))
+        //messagesRecyclerView.setBackgroundColor(resources.getColor(android.R.color.black))
+        mainscreen.setBackgroundColor(resources.getColor(android.R.color.black))
+        otherUsernameTextView.setTextColor(resources.getColor(android.R.color.white))
+
+        backButton.setImageResource(R.drawable.back1)
+
         Toast.makeText(this, "Vanish Mode Enabled", Toast.LENGTH_SHORT).show()
         val fadeIn = AlphaAnimation(0f, 1f).apply { duration = 500 }
         messagesRecyclerView.startAnimation(fadeIn)
@@ -638,7 +645,11 @@ class MessageActivity : AppCompatActivity() {
 
     private fun disableVanishModeUI() {
         vanishModeButton.setImageResource(R.drawable.iconn) // Replace with your OFF icon
-        messagesRecyclerView.setBackgroundColor(resources.getColor(android.R.color.white))
+        //messagesRecyclerView.setBackgroundColor(resources.getColor(android.R.color.white))
+        mainscreen.setBackgroundColor(resources.getColor(android.R.color.white))
+        otherUsernameTextView.setTextColor(resources.getColor(android.R.color.black))
+        backButton.setImageResource(R.drawable.backwardarrow)
+
         Toast.makeText(this, "Back to Normal Mode", Toast.LENGTH_SHORT).show()
     }
 
