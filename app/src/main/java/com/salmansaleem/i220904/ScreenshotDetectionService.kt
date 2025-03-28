@@ -176,6 +176,9 @@ class ScreenshotDetectionService : Service() {
         }
     }
 
+
+
+
     private fun notifyOtherUser() {
         if (currentUserId == null || otherUserId == null) return
 
@@ -195,6 +198,9 @@ class ScreenshotDetectionService : Service() {
 
     private fun sendScreenshotNotification(username: String) {
         val notificationData = mapOf(
+
+
+
             "type" to "screenshot_taken",
             "senderId" to currentUserId!!,
             "receiverId" to otherUserId!!,
@@ -219,8 +225,15 @@ class ScreenshotDetectionService : Service() {
             Log.d(TAG, "Content observer unregistered")
         }
         stopForeground(true)
+
+
         Log.d(TAG, "Service destroyed")
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+
+
+
+
 }
