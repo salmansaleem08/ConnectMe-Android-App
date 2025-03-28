@@ -68,6 +68,12 @@ class MyProfile : AppCompatActivity() {
             startActivity(intent)
         }
 
+        var btn6 = findViewById<ImageView>(R.id.logout)
+        btn6.setOnClickListener {
+            val intent = Intent(this, SignUp::class.java)
+            startActivity(intent)
+        }
+
         var btn2 = findViewById<TextView>(R.id.followers)
         btn2.setOnClickListener {
             val intent = Intent(this, FollowersActivity::class.java)
@@ -100,6 +106,9 @@ class MyProfile : AppCompatActivity() {
         findViewById<ImageView>(R.id.contacts).setOnClickListener {
             startActivity(Intent(this, Contacts::class.java))
         }
+
+
+
     }
 
     private fun loadUserData() {

@@ -19,6 +19,7 @@
         android:paddingTop="30dp"
         android:paddingStart="15dp"
         android:paddingEnd="15dp"
+        android:foregroundGravity="center_vertical"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
@@ -31,15 +32,25 @@
             android:textStyle="bold"
             android:textColor="#000000" />
 
+
+
         <View
             android:layout_width="0dp"
             android:layout_height="0dp"
             android:layout_weight="1" />
 
         <ImageView
+            android:id="@+id/logout"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:layout_margin="5dp"
+            android:src="@drawable/logout" />
+
+        <ImageView
             android:id="@+id/edit"
             android:layout_width="30dp"
             android:layout_height="30dp"
+            android:layout_margin="5dp"
             android:src="@drawable/pencil" />
     </LinearLayout>
 
