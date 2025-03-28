@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FFFFFF"
+    tools:context=".VideoChatActivity">
+
+    <!-- Remote Video (Large Frame) -->
+    <FrameLayout
+        android:id="@+id/remote_video_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_above="@id/icons"
+        android:background="#000000" />
+
+    <!-- Local Video (Small Frame) -->
+    <FrameLayout
+        android:id="@+id/local_video_container"
+        android:layout_width="120dp"
+        android:layout_height="160dp"
+        android:layout_alignParentEnd="true"
+        android:layout_above="@id/icons"
+        android:layout_margin="20dp"
+        android:background="@drawable/roundedrectangle" />
+
+    <!-- Username and Call Time -->
+    <TextView
+        android:id="@+id/name"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Henry Benjamin"
+        android:textSize="30sp"
+        android:textStyle="bold"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="55dp"
+        android:textColor="#FFFFFF" />
+
+    <TextView
+        android:id="@+id/time"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="00:00"
+        android:textSize="25sp"
+        android:layout_centerHorizontal="true"
+        android:layout_below="@id/name"
+        android:layout_marginTop="5dp"
+        android:textColor="#FFFFFF" />
+
+    <!-- Control Buttons -->
+    <LinearLayout
+        android:id="@+id/icons"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_alignParentBottom="true"
+        android:layout_marginLeft="10dp"
+        android:layout_marginRight="10dp"
+        android:layout_marginBottom="20dp"
+        android:background="@drawable/roundedrectangle"
+        android:padding="7dp"
+        android:gravity="center_vertical">
+
+
+
+
+        <ImageView
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:src="@drawable/menu"
+            android:background="@drawable/circle_button_light"
+            android:padding="10dp" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="20dp"
+            android:layout_weight="1"/>
+
+        <ImageView
+            android:id="@+id/videocall"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:src="@drawable/video"
+            android:padding="10dp"
+            android:background="@drawable/circle_button_light" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="20dp"
+            android:layout_weight="1"/>
+
+        <ImageView
+            android:id="@+id/mc"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:src="@drawable/mc"
+            android:background="@drawable/circle_button_light"
+            android:padding="10dp" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="20dp"
+            android:layout_weight="1"/>
+
+        <ImageView
+            android:id="@+id/speaker"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:src="@drawable/volume"
+            android:background="@drawable/circle_button_light"
+            android:padding="10dp" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="20dp"
+            android:layout_weight="1"/>
+
+        <ImageView
+            android:id="@+id/endcall"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:src="@drawable/circle" />
+
+    </LinearLayout>
+</RelativeLayout>

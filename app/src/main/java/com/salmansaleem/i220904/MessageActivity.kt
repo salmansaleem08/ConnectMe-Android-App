@@ -193,15 +193,18 @@ class MessageActivity : AppCompatActivity() {
             }
         }
 
-//        callButton.setOnClickListener {
-//            val intent = Intent(this, AudioChatActivity::class.java).apply {
-//                putExtra("USERNAME", otherUsernameTextView.text.toString())
-//                putExtra("PROFILE_PIC_BASE64", "") // Pass Base64 string if available, or fetch from Firebase
-//                putExtra("CHANNEL_NAME", getChatId(currentUserId!!, otherUserId!!)) // Use chat ID as channel
-//            }
-//
-//            startActivity(intent)
-//        }
+
+
+        videoCallButton.setOnClickListener {
+            if (checkNotificationPermission()) {
+                val callerId = currentUserId!!
+                val receiverId = otherUserId!!
+                val channelName = getChatId(callerId, receiverId)
+                val username = otherUsernameTextView.text.toString()
+                sendVideoCallInvite(callerId, receiverId, channelName, username)
+            }
+        }
+
         callButton.setOnClickListener {
             if (checkNotificationPermission()) {
                 val callerId = currentUserId!!
@@ -215,6 +218,32 @@ class MessageActivity : AppCompatActivity() {
         photoButton.setOnClickListener { openGallery() }
         vanishModeButton.setOnClickListener { toggleVanishMode() }
         backButton.setOnClickListener { finish() }
+    }
+
+
+
+    private fun sendVideoCallInvite(callerId: String, receiverId: String, channelName: String, username: String) {
+        val callData = mapOf(
+            "callerId" to callerId,
+            "receiverId" to receiverId,
+            "channelName" to channelName,
+            "username" to username,
+            "status" to "pending",
+            "type" to "video_call_invite", // Differentiate from audio call
+            "timestamp" to System.currentTimeMillis()
+        )
+
+        FirebaseDatabase.getInstance().reference.child("CallInvites").child(receiverId)
+            .setValue(callData)
+            .addOnSuccessListener {
+                Log.d("MessageActivity", "Video call invite stored for $receiverId")
+                sendFCMNotification(receiverId, callerId, channelName, username, "video_call_invite")
+                listenForVideoCallResponse(callerId, receiverId, channelName, username)
+            }
+            .addOnFailureListener { e ->
+                Log.e("MessageActivity", "Failed to send video call invite: ${e.message}")
+                Toast.makeText(this, "Failed to initiate video call", Toast.LENGTH_SHORT).show()
+            }
     }
 
     private fun sendCallInvite(callerId: String, receiverId: String, channelName: String, username: String) {
@@ -246,38 +275,110 @@ class MessageActivity : AppCompatActivity() {
 
     private val client = OkHttpClient()
 
-    private fun sendFCMNotification(receiverId: String, callerId: String, channelName: String, username: String) {
-        Log.d("FCM", "Fetching FCM token for receiver: $receiverId")
+//    private fun sendFCMNotification(receiverId: String, callerId: String, channelName: String, username: String) {
+//        Log.d("FCM", "Fetching FCM token for receiver: $receiverId")
+//        FirebaseDatabase.getInstance().reference.child("Users").child(receiverId).child("fcmToken")
+//            .addListenerForSingleValueEvent(object : ValueEventListener {
+//                override fun onDataChange(snapshot: DataSnapshot) {
+//                    val receiverToken = snapshot.getValue(String::class.java)
+//                    if (receiverToken.isNullOrEmpty()) {
+//                        Log.e("FCM", "No valid FCM token for $receiverId")
+//                        runOnUiThread {
+//                            Toast.makeText(this@MessageActivity, "$username is unavailable - no token", Toast.LENGTH_SHORT).show()
+//                        }
+//                        return
+//                    }
+//                    Log.d("FCM", "Sending v1 notification to: $receiverToken")
+//                    Thread {
+//                        try {
+//                            val accessToken = getAccessToken()
+//                            if (accessToken.isEmpty()) {
+//                                Log.e("FCM", "Failed to obtain access token")
+//                                runOnUiThread {
+//                                    Toast.makeText(this@MessageActivity, "Authentication failed", Toast.LENGTH_SHORT).show()
+//                                }
+//                                return@Thread
+//                            }
+//
+//                            val projectId = "assignment2db1" // Replace with your Firebase Project ID
+//                            val url = "https://fcm.googleapis.com/v1/projects/$projectId/messages:send"
+//                            val json = JSONObject().apply {
+//                                put("message", JSONObject().apply {
+//                                    put("token", receiverToken)
+//                                    put("data", JSONObject().apply {
+//                                        put("type", "call_invite")
+//                                        put("callerId", callerId)
+//                                        put("receiverId", receiverId)
+//                                        put("channelName", channelName)
+//                                        put("username", username)
+//                                    })
+//                                    put("android", JSONObject().apply {
+//                                        put("priority", "high")
+//                                    })
+//                                })
+//                            }.toString()
+//
+//                            val request = Request.Builder()
+//                                .url(url)
+//                                .post(json.toRequestBody("application/json; charset=utf-8".toMediaType()))
+//                                .header("Authorization", "Bearer $accessToken")
+//                                .build()
+//
+//                            client.newCall(request).execute().use { response ->
+//                                val responseBody = response.body?.string() ?: ""
+//                                if (response.isSuccessful) {
+//                                    Log.d("FCM", "Notification sent successfully to $receiverId")
+//                                } else {
+//                                    Log.e("FCM", "FCM v1 failed: ${response.code} - $responseBody")
+//                                    runOnUiThread {
+//                                        Toast.makeText(this@MessageActivity, "Failed to send call: ${response.code} - $responseBody", Toast.LENGTH_LONG).show()
+//                                    }
+//                                }
+//                            }
+//                        } catch (e: Exception) {
+//                            Log.e("FCM", "Error sending FCM v1: ${e.message}", e)
+//                            runOnUiThread {
+//                                Toast.makeText(this@MessageActivity, "Call failed: ${e.message}", Toast.LENGTH_SHORT).show()
+//                            }
+//                        }
+//                    }.start()
+//                }
+//
+//                override fun onCancelled(error: DatabaseError) {
+//                    Log.e("FCM", "Token fetch failed: ${error.message}")
+//                    runOnUiThread {
+//                        Toast.makeText(this@MessageActivity, "Error fetching token: ${error.message}", Toast.LENGTH_SHORT).show()
+//                    }
+//                }
+//            })
+//    }
+
+    private fun sendFCMNotification(receiverId: String, callerId: String, channelName: String, username: String, callType: String = "call_invite") {
         FirebaseDatabase.getInstance().reference.child("Users").child(receiverId).child("fcmToken")
             .addListenerForSingleValueEvent(object : ValueEventListener {
                 override fun onDataChange(snapshot: DataSnapshot) {
                     val receiverToken = snapshot.getValue(String::class.java)
                     if (receiverToken.isNullOrEmpty()) {
                         Log.e("FCM", "No valid FCM token for $receiverId")
-                        runOnUiThread {
-                            Toast.makeText(this@MessageActivity, "$username is unavailable - no token", Toast.LENGTH_SHORT).show()
-                        }
+                        Toast.makeText(this@MessageActivity, "$username is unavailable - no token", Toast.LENGTH_SHORT).show()
                         return
                     }
-                    Log.d("FCM", "Sending v1 notification to: $receiverToken")
                     Thread {
                         try {
                             val accessToken = getAccessToken()
                             if (accessToken.isEmpty()) {
                                 Log.e("FCM", "Failed to obtain access token")
-                                runOnUiThread {
-                                    Toast.makeText(this@MessageActivity, "Authentication failed", Toast.LENGTH_SHORT).show()
-                                }
+                                Toast.makeText(this@MessageActivity, "Authentication failed", Toast.LENGTH_SHORT).show()
                                 return@Thread
                             }
 
-                            val projectId = "assignment2db1" // Replace with your Firebase Project ID
+                            val projectId = "assignment2db1"
                             val url = "https://fcm.googleapis.com/v1/projects/$projectId/messages:send"
                             val json = JSONObject().apply {
                                 put("message", JSONObject().apply {
                                     put("token", receiverToken)
                                     put("data", JSONObject().apply {
-                                        put("type", "call_invite")
+                                        put("type", callType)
                                         put("callerId", callerId)
                                         put("receiverId", receiverId)
                                         put("channelName", channelName)
@@ -296,33 +397,31 @@ class MessageActivity : AppCompatActivity() {
                                 .build()
 
                             client.newCall(request).execute().use { response ->
-                                val responseBody = response.body?.string() ?: ""
                                 if (response.isSuccessful) {
                                     Log.d("FCM", "Notification sent successfully to $receiverId")
                                 } else {
-                                    Log.e("FCM", "FCM v1 failed: ${response.code} - $responseBody")
-                                    runOnUiThread {
-                                        Toast.makeText(this@MessageActivity, "Failed to send call: ${response.code} - $responseBody", Toast.LENGTH_LONG).show()
-                                    }
+                                    Log.e("FCM", "FCM v1 failed: ${response.code} - ${response.body?.string()}")
                                 }
                             }
                         } catch (e: Exception) {
                             Log.e("FCM", "Error sending FCM v1: ${e.message}", e)
-                            runOnUiThread {
-                                Toast.makeText(this@MessageActivity, "Call failed: ${e.message}", Toast.LENGTH_SHORT).show()
-                            }
+                            Toast.makeText(this@MessageActivity, "Call failed: ${e.message}", Toast.LENGTH_SHORT).show()
                         }
                     }.start()
                 }
 
                 override fun onCancelled(error: DatabaseError) {
                     Log.e("FCM", "Token fetch failed: ${error.message}")
-                    runOnUiThread {
-                        Toast.makeText(this@MessageActivity, "Error fetching token: ${error.message}", Toast.LENGTH_SHORT).show()
-                    }
+                    Toast.makeText(this@MessageActivity, "Error fetching token: ${error.message}", Toast.LENGTH_SHORT).show()
                 }
             })
     }
+
+
+
+
+
+
     private fun getAccessToken(): String {
         try {
             val inputStream: InputStream = resources.openRawResource(R.raw.service_account)
@@ -395,6 +494,64 @@ class MessageActivity : AppCompatActivity() {
         }
     }
 
+
+
+
+    private fun listenForVideoCallResponse(callerId: String, receiverId: String, channelName: String, username: String) {
+        val callRef = FirebaseDatabase.getInstance().reference.child("CallInvites").child(receiverId)
+        callRef.addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val status = snapshot.child("status").getValue(String::class.java)
+                when (status) {
+                    "accepted" -> {
+                        Log.d("MessageActivity", "Video call accepted by $receiverId")
+                        startVideoChat(callerId, receiverId, channelName, username, true)
+                        callRef.removeEventListener(this)
+                    }
+                    "rejected" -> {
+                        Log.d("MessageActivity", "Video call rejected by $receiverId")
+                        Toast.makeText(this@MessageActivity, "$username is busy", Toast.LENGTH_SHORT).show()
+                        callRef.removeValue()
+                        callRef.removeEventListener(this)
+                    }
+                }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e("MessageActivity", "Error listening for video call response: ${error.message}")
+            }
+        })
+    }
+
+    private fun startVideoChat(callerId: String, receiverId: String, channelName: String, username: String, isCaller: Boolean) {
+        FirebaseDatabase.getInstance().reference.child("Users").child(if (isCaller) receiverId else callerId)
+            .child("profileImageBase64")
+            .addListenerForSingleValueEvent(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    val profilePicBase64 = snapshot.getValue(String::class.java) ?: ""
+                    val intent = Intent(this@MessageActivity, VideoChatActivity::class.java).apply {
+                        putExtra("USERNAME", username)
+                        putExtra("CHANNEL_NAME", channelName)
+                        putExtra("CALLER_ID", callerId)
+                        putExtra("RECEIVER_ID", receiverId)
+                        putExtra("PROFILE_PIC_BASE64", profilePicBase64)
+                        putExtra("IS_CALLER", isCaller)
+                    }
+                    startActivity(intent)
+                }
+                override fun onCancelled(error: DatabaseError) {
+                    val intent = Intent(this@MessageActivity, VideoChatActivity::class.java).apply {
+                        putExtra("USERNAME", username)
+                        putExtra("CHANNEL_NAME", channelName)
+                        putExtra("CALLER_ID", callerId)
+                        putExtra("RECEIVER_ID", receiverId)
+                        putExtra("PROFILE_PIC_BASE64", "")
+                        putExtra("IS_CALLER", isCaller)
+                    }
+                    startActivity(intent)
+                }
+            })
+    }
 
     private fun listenForCallResponse(callerId: String, receiverId: String, channelName: String, username: String) {
         val callRef = FirebaseDatabase.getInstance().reference.child("CallInvites").child(receiverId)
